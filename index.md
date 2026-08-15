@@ -30,7 +30,7 @@ Goal: extend tablegen
         - seems to be done already.
     - or MIR combines
         - pick a target for this.
-    - [MIR combines in td ](mir-combines-in-td-/index.md)
+    - [MIR combines in td ](mir-combines-in-td/index.md)
 5. multi-def patterns for GISel/Sdag pipelines.
     - add with carry patterns exist but
     this is about allowing generic multi-def patterns.
