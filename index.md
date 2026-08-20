@@ -34,7 +34,11 @@ Goal: extend tablegen
 5. multi-def patterns for GISel/Sdag pipelines.
     - add with carry patterns exist but
     this is about allowing generic multi-def patterns.
-5. Delegation (kotlin) or composition in tablegen
+6. Delegation (kotlin) or composition in tablegen
+7. Syntax to enable 
+    ```
+    let mayStore = 1 in defm : multiclassWithRecordsThatDontHaveMayStoreField
+    ```
 
 ## Implemented
 
