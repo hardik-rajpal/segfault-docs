@@ -3,8 +3,11 @@
 Goal: extend tablegen
 
 ## Ideas 
-1. [Hardik] Reflection in tablegen
+1. [Hardik] Reflection in tablegen → **pivoted: late-bound template parameters**
     - i.e. pass td classes around as params, then `def : klassPassedThroughParam`
+    - Broader framing: tablegen already has template params; three syntactic
+    positions refuse to take one — the **base class**, the **`bits<n>` width**,
+    and **`Inst{hi-lo}` bit ranges**. All three verified blocked.
     - Demo that writes itself: a higher-order `class CombineRuleTemplate<...>`
     that collapses the duplicated `GICombineRule` families in
     `llvm/include/llvm/Target/GlobalISel/Combine.td`.
@@ -17,6 +20,10 @@ Goal: extend tablegen
         `bitcast_bitcast_fold`/`fptrunc_fpext_fold`.
         - Concrete, visibly shorter output, and diffable against real
         upstream code.
+        - **Disproved.** An ordinary multiclass already collapses that family
+        (verified with tblgen). Demo moved to the SystemZ `.insn` classes,
+        where the varying axis really is the base class.
+    - [Late-bound template parameters](reflection-in-tablegen/index.md)
 2. [Hardik] Namespaces
     - May help in cleaning up code where the core set being iterating
     is the same across a set of prefixes.
