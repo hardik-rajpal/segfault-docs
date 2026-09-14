@@ -778,6 +778,73 @@ None of the three is reachable from the SystemZ demo, and all of them are
 changed anything would fail the gate rather than ship. Recorded as a known
 limitation of templating a `SearchableTable` or a `CCIf*` class, not handled.
 
+## Built
+
+Implemented on branch `tablegen-template-classes` in `../segfault-llvm-project`,
+three commits on top of `0664fb13c0dd`. **All five stages of the MVP landed.**
+
+| | |
+|---|---|
+| Gate | all 15 SystemZ `.inc` outputs unchanged |
+| Result | **passed** — 14 byte-identical; `InstrInfo.inc` differs only in `SystemZInstrFormats.td:NNNN` source-line comments, which move because the file is 188 lines shorter. Masking those line numbers leaves it byte-identical too. |
+| Tests | `llvm/test/TableGen` **447/447**, including a new `TemplateClass.td` |
+| Demo | **30 classes → 3**; 258 lines → 63 across the two `.td` files |
+| Feature size | ~500 lines across 6 source files |
+
+### The collapsed block
+
+```tablegen
+template class DirectiveInsn<class<InstSystemZ> Fmt, int opcode, int width,
+                             list<int> slice, dag outs, dag ins, string asmstr,
+                             list<dag> pattern>
+  : Fmt<opcode, outs, ins, asmstr, pattern> {
+  bits<width> enc;
+  let Inst{slice} = enc{slice};
+}
+```
+
+`DirectiveInsnRIL` and `DirectiveInsnRXE` remain as two-line classes built on
+the template, because they carry something beyond the shared shape (a
+`string type` field and `let M3 = 0`). Everything else became a use-site
+argument tuple.
+
+### What the build changed about the design
+
+1. **The slice list needs no new syntax.** The page proposed `[47...40, 7...0]`,
+   which is not valid TableGen — `...` is range syntax inside `{ }`, not inside
+   `[ ]`. `!listconcat(!range(40, 48), !range(0, 8))` expresses the same set
+   today. *Verified:* `let Inst{s} = enc{s}` pairs the two sides element-wise, so
+   only the set of indices matters and ascending order is free. One `defvar` per
+   distinct shape carries it.
+
+2. **Position 3b lands in one function, not two.** Both the assignment target
+   (`Inst{slice}`) and the value suffix (`enc{slice}`) funnel through
+   `ParseRangePiece`. Accepting a `ListInit` there covers both — ~20 lines total.
+
+3. **`typeIsConvertibleTo` is not enough for a new RecTy.** `ClassRecTy` also
+   needs `typeIsA`, or `TypedInit::getCastTo` asserts when widening
+   `class<FmtA>` to `class<Fmt>`. Not mentioned anywhere on this page; found by
+   crashing.
+
+4. **A class name in value position must be the *last* resort.** A def and a
+   class may share a name. Resolving the class before the def self-reference
+   path silently changes what existing `.td` means. Ordered after, the only
+   behavior change is on the path that previously ended in
+   `Variable not defined` — strictly additive. This is the subtlest thing in the
+   patch and the page did not anticipate it.
+
+5. **The primary-template trick works.** `isSubClassOf("W")` holds on every
+   instantiation, and the mangled `W$0` names never reached any of the three
+   name-matching backend sites from §3 — the hash gate would have caught it.
+
+### Still open
+
+- Stage 5 as scoped: no perf measurement on X86/AArch64, no `ProgRef.rst`, no RFC.
+- The fourth and fifth positions (variadic argument lists; parameter types that
+  depend on earlier parameters) remain unimplemented, by decision.
+- `getSuperClasses()` name leakage into `SearchableTableEmitter`'s arity check
+  is unhandled — it bites only a templated `SearchableTable` class.
+
 ## Risks
 
 - **"Just use a multiclass."** The likeliest upstream response, and — as the
