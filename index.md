@@ -2,54 +2,38 @@
 
 Goal: extend tablegen
 
-## Ideas 
-1. [Hardik] Reflection in tablegen → **pivoted: late-bound template parameters**
-    - i.e. pass td classes around as params, then `def : klassPassedThroughParam`
-    - Broader framing: tablegen already has template params; three syntactic
-    positions refuse to take one — the **base class**, the **`bits<n>` width**,
-    and **`Inst{hi-lo}` bit ranges**. All three verified blocked.
-    - Demo that writes itself: a higher-order `class CombineRuleTemplate<...>`
-    that collapses the duplicated `GICombineRule` families in
-    `llvm/include/llvm/Target/GlobalISel/Combine.td`.
-        - `!foreach` can already abstract over *instructions*, because
-        instructions are defs and defs are first-class:
-        `!foreach(op, [G_SHL, G_ASHR, G_LSHR], (pattern (op $dst, $x, 0)))`
-        - It can't reach the *rule structure*, so whole families are
-        copy-paste: `match_selects`/`match_ands`/`match_ors`/`match_addos`
-        are four identical lines with one opcode swapped; likewise
-        `bitcast_bitcast_fold`/`fptrunc_fpext_fold`.
-        - Concrete, visibly shorter output, and diffable against real
-        upstream code.
-        - **Disproved.** An ordinary multiclass already collapses that family
-        (verified with tblgen). Demo moved to the SystemZ `.insn` classes,
-        where the varying axis really is the base class.
-    - [Late-bound template parameters](reflection-in-tablegen/index.md)
-2. [Hardik] Namespaces
-    - May help in cleaning up code where the core set being iterating
-    is the same across a set of prefixes.
-    - like declaring a bunch of instructions slightly differently for subtargets.
-3. [Hardik] Runtime manipulation of codegen without recompiling the compiler.
-    - `TargetRegistry` is already a runtime registry; only the tblgen-generated
-    `.inc` tables are frozen. Make one loadable — combine rules first.
-    - Upstream already ships `-disable-rule`/`-only-enable-rule`. There is no
-    `-add-rule`. That's the gap.
-    - [Runtime codegen without recompiling](runtime-codegen-no-recompile/index.md)
-4. [Aman] Td backend for writing
-    - ~~GMIR combines~~
-        - G_SELECT (G_ICMP ne s1 x, 0) 1, 0 → x
-        - seems to be done already.
-    - or MIR combines
-        - pick a target for this.
-    - [MIR combines in td ](mir-combines-in-td/index.md)
-5. [Aman] multi-def patterns for GISel/Sdag pipelines.
-    - add with carry patterns exist but
-    this is about allowing generic multi-def patterns.
-6. [Hardik] Delegation (kotlin) or composition in tablegen
-7. [Aman] Syntax to enable 
-    ```
-    let mayStore = 1 in defm : multiclassWithRecordsThatDontHaveMayStoreField
-    ```
+## What we built
 
-## Implemented
+**"template class"** — late-bound template parameters for TableGen.
 
-- TODO
+TableGen already has template parameters, but three syntactic positions
+refuse to take one: the **base class** in an inheritance list, the
+**`bits<n>` width**, and **`Inst{hi-lo}` bit ranges**. All three verified
+blocked. `template class` fixes all three by storing a templated class's
+body unparsed at definition and monomorphising it fresh per distinct
+argument tuple at each use, entirely inside the parser.
+
+Demonstrated on SystemZ's 30 near-identical `.insn` directive classes,
+collapsing them to 3 (+2 outliers): 258 lines to 63, every one of the 15
+generated `.inc` files byte-identical, all 447 existing TableGen tests
+still passing.
+
+Started as "reflection in TableGen" — pass `.td` classes around as values,
+then `def : klassPassedThroughParam`. The first concrete demo target
+(collapsing the duplicated `GICombineRule` families in `Combine.td`) turned
+out to be **disproved**: an ordinary multiclass already collapses that
+family, verified with tblgen. The demo moved to the SystemZ `.insn`
+classes, where the varying axis really is the base class — that's what
+stuck, and what the full writeup below covers.
+
+Full design notes, the ideas we tried and rejected along the way, the
+correctness gate, and what's still open: [Late-bound template
+parameters](reflection-in-tablegen/index.md)
+
+## Other ideas we didn't pursue
+
+Namespaces, runtime-loadable combine rules without recompiling, a MIR
+combine-rule backend, multi-def GISel/SDAG patterns, delegation/composition
+syntax, and a `let mayStore = 1 in defm : ...`-style field-injection syntax
+all came up during ideation. None were built for this hackathon — trimmed
+from this repo to keep it focused on what actually shipped.
